@@ -97,10 +97,11 @@
     </footer>
 
     <script>
+        // Peringatan: Anda perlu memasukkan API Key di sini jika menjalankan di GitHub Pages.
+        // Di persekitaran ini, sistem akan mengisi secara automatik.
         const apiKey = ""; 
         let timeout = null;
 
-        // Fungsi untuk menterjemah secara automatik selepas berhenti menaip
         function debounceTranslate() {
             clearTimeout(timeout);
             const input = document.getElementById('inputBM').value.trim();
@@ -123,8 +124,6 @@
 
             const systemPrompt = `Anda adalah penterjemah pakar dialek Negeri Sembilan (Nogori). 
             Tugas anda adalah menterjemah Bahasa Melayu Moden kepada dialek Negeri Sembilan yang pekat dan asli. 
-            Contoh: 'Saya makan kerbau' -> 'Den makan kobau'. 
-            'Kenapa kau buat begitu' -> 'Kuwano ekau buek camtu'.
             Hanya berikan hasil terjemahan sahaja tanpa huraian tambahan.`;
 
             try {
@@ -137,12 +136,22 @@
                     })
                 });
 
+                if (!response.ok) {
+                    throw new Error("API_KEY_MISSING_OR_INVALID");
+                }
+
                 const result = await response.json();
                 const translated = result.candidates?.[0]?.content?.parts?.[0]?.text || "Maaf, gagal menterjemah.";
                 
                 outputText.innerText = translated.trim();
             } catch (error) {
-                errorLog.innerText = "Error: Masalah sambungan AI. Sila cuba lagi.";
+                if (error.message === "API_KEY_MISSING_OR_INVALID" || !apiKey) {
+                    outputText.innerText = "Konfigurasi API Key diperlukan untuk menterjemah.";
+                    errorLog.innerText = "Sila pastikan const apiKey telah diisi dengan kunci yang sah.";
+                } else {
+                    outputText.innerText = "Maaf, gagal menterjemah.";
+                    errorLog.innerText = "Ralat teknikal berlaku. Sila cuba lagi.";
+                }
                 errorLog.classList.remove('hidden');
             } finally {
                 status.classList.add('hidden');
@@ -150,12 +159,11 @@
             }
         }
 
-        // Fungsi Suara (Text-to-Speech)
         async function speakNogori() {
             const text = document.getElementById('outputText').innerText;
             const btn = document.getElementById('btnSpeak');
             
-            if (text === "Menunggu anda menaip..." || !text.trim()) return;
+            if (text === "Menunggu anda menaip..." || text.includes("perlu diisi") || !text.trim()) return;
 
             btn.disabled = true;
             btn.innerText = "Tengah jana...";
@@ -176,17 +184,14 @@
             };
 
             try {
-                // Implementasi retry logic (exponential backoff)
                 let response;
                 for (let i = 0; i < 5; i++) {
-                    try {
-                        response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(payload)
-                        });
-                        if (response.ok) break;
-                    } catch (e) {}
+                    response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (response.ok) break;
                     await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000));
                 }
 
@@ -195,8 +200,6 @@
 
                 if (audioData) {
                     await playAudio(audioData);
-                } else {
-                    console.error("Gagal menjana audio.");
                 }
             } catch (error) {
                 console.error("Audio error:", error);
@@ -223,7 +226,7 @@
             try {
                 await audio.play();
             } catch (e) {
-                console.warn("Autoplay disekat. Pengguna perlu klik lagi sekali.");
+                console.warn("Autoplay disekat.");
             }
         }
 
